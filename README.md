@@ -502,10 +502,10 @@ Après reboot, la batterie de contrôles confirme la persistance de tous les dur
 
 ## 12. Livrables du dépôt
 
-- `README.md` : ce document (tutoriel illustré, captures intégrées).
-- `JOURNAL-INCIDENTS.md` : le journal des incidents, avec cause et correctif.
-- `Screenshots/` : les 26 captures d'écran référencées (`TP3-EtapeXX-NomTache.png`).
-- `.gitignore` : exclut de la publication les PDF (l'énoncé `TP - Hardening Linux lvl 3.pdf` et les deux documents de référence `fail2ban`/`Squid`, qui accompagneront le complément à venir) ; tout le reste du dossier est publié.
+- `README.md` : ce document (tutoriel illustré, captures intégrées) — TP1-3 sur la machine principale et complément fail2ban/Squid sur la VM proxy (section 13).
+- `JOURNAL-INCIDENTS.md` : le journal des incidents, avec cause et correctif (17 incidents au total).
+- `Screenshots/` : les captures d'écran référencées, deux nomenclatures distinctes — `TP3-EtapeXX-NomTache.png` (machine principale) et `Proxy-EtapeAXX-NomTache.png` (VM proxy, section 13).
+- `.gitignore` : exclut de la publication les PDF (l'énoncé `TP - Hardening Linux lvl 3.pdf` et les deux documents de référence `Sonde de détection Active - Fail2ban.pdf` / `Squid - Configuration Proxy.pdf`) ; tout le reste du dossier est publié.
 
 ## 13. Complément — Sonde active (fail2ban) et proxy sortant (Squid)
 
@@ -522,6 +522,10 @@ Après reboot, la batterie de contrôles confirme la persistance de tous les dur
 ### 13.2 Installation d'Arch Linux sur la VM proxy
 
 **Incident de départ :** la configuration initiale de fail2ban avait été faite directement sur l'**ISO live** (RAM), avant que je ne remarque, via le MOTD affiché après une connexion SSH, qu'aucune installation sur disque n'avait été faite — toute configuration aurait donc disparu au premier redémarrage. J'ai donc réalisé une installation Arch minimale sur cette VM avant de poursuivre (détail complet dans `JOURNAL-INCIDENTS.md`, incident #13).
+
+![Première installation de fail2ban, encore sur l'ISO live](Screenshots/Proxy-EtapeA02-fail2ban-install.png)
+![Jail activée mais 0 configuration persistante (ISO live)](Screenshots/Proxy-EtapeA04-fail2ban-status-vide.png)
+![Configuration en apparence fonctionnelle, en réalité vouée à disparaître au reboot](Screenshots/Proxy-EtapeA05-fail2ban-jail-active.png)
 
 **Schéma retenu :** un disque unique de 20 Go (`/dev/sda`), partitionné en trois : EFI System (512 Mo), swap (1 Go), racine `ext4` (le reste). Plus simple que les TP1-3 : cette VM n'héberge pas de volume `/data` chiffré, n'a pas besoin de 2FA ni de partition USB dédiée — son unique rôle est de faire tourner Squid et fail2ban.
 
@@ -546,10 +550,13 @@ grub-mkconfig -o /boot/grub/grub.cfg
 
 **Validation :** après `exit`, `umount -R /mnt` et `reboot`, reconnexion SSH réussie sur `squid-proxy` — plus de MOTD live, le prompt affiche bien le hostname persisté.
 
-![Partitionnement](Screenshots/Proxy-EtapeA08-cfdisk-ecriture-lsblk.png)
-![Installation de base](Screenshots/Proxy-EtapeA11-pacstrap-installation.png)
-![Bootloader](Screenshots/Proxy-EtapeA16-grub-install.png)
-![Reconnexion post-reboot](Screenshots/Proxy-EtapeA18-reboot-connexion-ok.png)
+![Formatage des partitions](Screenshots/Proxy-EtapeA09-formatage-partitions.png)
+![Montage et vérification](Screenshots/Proxy-EtapeA10-montage-partitions.png)
+![Installation de base (pacstrap)](Screenshots/Proxy-EtapeA11-pacstrap-installation.png)
+![genfstab et entrée en chroot](Screenshots/Proxy-EtapeA13-arch-chroot.png)
+![Fuseau horaire, locale, hostname, mot de passe](Screenshots/Proxy-EtapeA14-locale-hostname-passwd.png)
+![Réseau statique persistant et SSH](Screenshots/Proxy-EtapeA15-reseau-ssh-enable.png)
+![Bootloader GRUB](Screenshots/Proxy-EtapeA16-grub-install.png)
 
 **Documentation :** https://wiki.archlinux.org/title/Installation_guide
 
@@ -559,10 +566,15 @@ grub-mkconfig -o /boot/grub/grub.cfg
 
 **Incident :** au premier redémarrage, `pacman -Sy fail2ban` échouait (`Could not resolve host` sur tous les mirroirs) — `systemd-resolved`, bien que `disabled`, réinitialisait `/etc/resolv.conf` via ses sockets d'activation, exactement comme au TP3. Correctif identique : masquage du service + `/etc/resolv.conf` statique (incident #14, détaillé dans le journal).
 
+![Diagnostic : resolv.conf réinitialisé, systemd-resolved toujours actif via ses sockets](Screenshots/Proxy-EtapeA21-diagnostic-resolved.png)
+![Correctif : masquage de systemd-resolved et resolv.conf statique](Screenshots/Proxy-EtapeA22-fix-resolv-conf.png)
+
 ```bash
 pacman -Sy fail2ban
 systemctl enable --now fail2ban
 ```
+
+![Installation de fail2ban réussie après correction du DNS](Screenshots/Proxy-EtapeA23-fail2ban-install-ok.png)
 
 `/etc/fail2ban/jail.local` :
 
@@ -589,7 +601,8 @@ fail2ban-client status sshd
 
 Résultat : jail `sshd` active, filtre qui surveille `sshd.service` via le journal (`_SYSTEMD_UNIT=sshd.service`), 0 échec et 0 ban au repos.
 
-![Jail active](Screenshots/Proxy-EtapeA25-fail2ban-jail-active.png)
+![jail.local appliqué et service redémarré](Screenshots/Proxy-EtapeA24-fail2ban-jail-local.png)
+![Jail sshd active, 0 échec, 0 ban](Screenshots/Proxy-EtapeA25-fail2ban-jail-active.png)
 
 **Documentation :** https://wiki.archlinux.org/title/Fail2ban
 
@@ -614,7 +627,7 @@ curl -I -x 127.0.0.1:3128 https://www.wikipedia.org/
 
 `HTTP/1.1 200 Connection established` suivi d'un `HTTP/2 200` — le service fonctionne.
 
-![Squid actif et testé en local](Screenshots/Proxy-EtapeA27-A28-squid-enable-test-local.png)
+![Squid actif et testé en local](Screenshots/Proxy-EtapeA28-squid-test-local.png)
 
 **Étape 2 — filtrage par liste de domaines :**
 
@@ -634,6 +647,12 @@ systemctl restart squid
 **Choix justifiés :** `dstdomain` avec un point en tête (`.wikipedia.org`) autorise le domaine **et** ses sous-domaines. L'ACL `allowed_dst` est insérée juste avant `http_access deny all`, qui continue donc à jouer son rôle de règle de refus par défaut pour tout le reste — seuls `archlinux.org` (dépôts/documentation Arch) et `wikipedia.org` (test neutre) passent, tout le reste, y compris `twitter.com`, est bloqué.
 
 **Incident rencontré :** deux tentatives d'insertion par `sed` ancrées sur un motif (`/^http_access deny all$/i …`) ont échoué **silencieusement** — aucune erreur, mais le fichier restait inchangé, ce qui a d'abord masqué un faux « tout passe » (test via `127.0.0.1`, qui contourne le filtrage — voir ci-dessous) puis un faux « tout est bloqué » (l'ACL n'avait en réalité toujours pas été insérée). Le correctif a été de basculer sur une insertion **par numéro de ligne** (`sed -i '68i …'`), fiable, vérifiée par `grep -n` après coup. Détail complet : incident #15 du journal.
+
+![Premier essai de filtrage : sed silencieusement sans effet, faux « tout passe »](Screenshots/Proxy-EtapeA34-squid-filtrage-test.png)
+![Second essai, faux « tout est bloqué » — ACL toujours absente](Screenshots/Proxy-EtapeA34-squid-filtrage-test2.png)
+![Diagnostic de squid.conf : structure par défaut, ligne cible propre](Screenshots/Proxy-EtapeA35-diagnostic-squid-conf.png)
+![Retest après correctif de méthodologie de test](Screenshots/Proxy-EtapeA37-squid-filtrage-test-corrige.png)
+![cat -A du diagnostic et insertion par numéro de ligne, confirmée par grep](Screenshots/Proxy-EtapeA39-squid-filtrage-conf-final.png)
 
 **Piège de méthodologie de test :** tester via `curl -x 127.0.0.1:3128 …` renvoie systématiquement `200`, quel que soit le domaine, car la configuration par défaut de Squid contient une règle `http_access allow localhost` (ACL `localhost` = `src 127.0.0.1/32 ::1`) évaluée **avant** toute règle personnalisée. Le test valide doit donc cibler l'IP réelle de l'interface du proxy (`10.10.10.254`), qui ne correspond pas à cette ACL. Détail complet : incident #16 du journal.
 
