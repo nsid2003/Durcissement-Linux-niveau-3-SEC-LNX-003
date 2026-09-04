@@ -509,13 +509,13 @@ Après reboot, la batterie de contrôles confirme la persistance de tous les dur
 
 ## 13. Complément — Sonde active (fail2ban) et proxy sortant (Squid)
 
-> Ce complément fait suite à la note de la section 11 : deux configurations demandées par l'encadrant — une sonde de détection active `fail2ban` et un proxy sortant `Squid` — sont mises en place sur une **seconde VM dédiée**, `squid-proxy` (`10.10.10.254`), sur le même réseau interne que la machine des TP1-3. Les captures de ce complément suivent leur propre nomenclature, `Proxy-EtapeAXX-NomTache.png`, pour rester distinctes de la séquence `TP3-EtapeXX`.
+> Je poursuis ici la note de la section 11 : je mets en place, sur une **seconde VM dédiée**, `squid-proxy` (`10.10.10.254`), les deux configurations complémentaires demandées par l'encadrant — une sonde de détection active `fail2ban` et un proxy sortant `Squid` — sur le même réseau interne que la machine des TP1-3. Je fais suivre aux captures de ce complément leur propre nomenclature, `Proxy-EtapeAXX-NomTache.png`, pour les distinguer de la séquence `TP3-EtapeXX`.
 
 ### 13.1 Contexte réseau
 
 **But :** disposer d'une VM adressée sur le même réseau interne (`10.10.10.0/24`) que la machine du TP1-3, pour jouer le rôle de proxy sortant.
 
-**Choix :** adressage statique `10.10.10.254/24`, passerelle `10.10.10.1` (la machine d'administration), DNS `8.8.8.8`, testé depuis l'ISO live avant toute installation (connectivité confirmée vers Internet ; le ping vers la passerelle elle-même est filtré côté admin, comportement attendu et déjà documenté au TP3).
+**Choix justifiés :** je retiens un adressage statique `10.10.10.254/24`, avec pour passerelle `10.10.10.1` (la machine d'administration) et pour DNS `8.8.8.8`. Je teste cette configuration depuis l'ISO live avant toute installation (connectivité confirmée vers Internet ; le ping vers la passerelle elle-même est filtré côté admin, comportement attendu et déjà documenté au TP3).
 
 ![Réseau live](Screenshots/Proxy-EtapeA01-reseau-live.png)
 
@@ -527,7 +527,7 @@ Après reboot, la batterie de contrôles confirme la persistance de tous les dur
 ![Jail activée mais 0 configuration persistante (ISO live)](Screenshots/Proxy-EtapeA04-fail2ban-status-vide.png)
 ![Configuration en apparence fonctionnelle, en réalité vouée à disparaître au reboot](Screenshots/Proxy-EtapeA05-fail2ban-jail-active.png)
 
-**Schéma retenu :** un disque unique de 20 Go (`/dev/sda`), partitionné en trois : EFI System (512 Mo), swap (1 Go), racine `ext4` (le reste). Plus simple que les TP1-3 : cette VM n'héberge pas de volume `/data` chiffré, n'a pas besoin de 2FA ni de partition USB dédiée — son unique rôle est de faire tourner Squid et fail2ban.
+**Choix justifiés :** je retiens un disque unique de 20 Go (`/dev/sda`), partitionné en trois : EFI System (512 Mo), swap (1 Go), racine `ext4` (le reste). Je simplifie volontairement par rapport aux TP1-3 : je n'héberge pas de volume `/data` chiffré sur cette VM, et je n'ajoute ni 2FA ni partition USB dédiée — son unique rôle est de faire tourner Squid et fail2ban.
 
 ```bash
 cfdisk /dev/sda
@@ -541,14 +541,14 @@ genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot /mnt
 ```
 
-Dans le chroot : fuseau horaire (`Europe/Paris`), locale `en_US.UTF-8`, hostname `squid-proxy`, mot de passe root, réseau statique persistant via `systemd-networkd` (même adressage que testé en live), `sshd` activé avec `PermitRootLogin yes` (nécessaire : cette VM reste en authentification par mot de passe, contrairement aux clés du TP1-3), puis GRUB en mode UEFI :
+Dans le chroot, je règle le fuseau horaire (`Europe/Paris`), la locale `en_US.UTF-8`, le hostname `squid-proxy`, et le mot de passe root ; je configure un réseau statique persistant via `systemd-networkd` (même adressage que testé en live) ; j'active `sshd` avec `PermitRootLogin yes` (nécessaire : je laisse cette VM en authentification par mot de passe, contrairement aux clés du TP1-3) ; puis j'installe GRUB en mode UEFI :
 
 ```bash
 grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
 grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-**Validation :** après `exit`, `umount -R /mnt` et `reboot`, reconnexion SSH réussie sur `squid-proxy` — plus de MOTD live, le prompt affiche bien le hostname persisté.
+**Validation :** après `exit`, `umount -R /mnt` et `reboot`, je me reconnecte en SSH sur `squid-proxy` avec succès — plus de MOTD live, le prompt affiche bien le hostname persisté.
 
 ![Formatage des partitions](Screenshots/Proxy-EtapeA09-formatage-partitions.png)
 ![Montage et vérification](Screenshots/Proxy-EtapeA10-montage-partitions.png)
@@ -592,7 +592,7 @@ bantime.maxtime = 1d
 enabled = true
 ```
 
-**Explication des choix :** `maxretry = 3` (plus strict que le défaut de 5) et un `bantime` croissant (`bantime.increment`) qui multiplie la peine par 4 à chaque récidive, plafonnée à 24h — un compromis entre dissuasion et évitement d'un bannissement définitif sur une IP légitime qui se serait trompée une fois. `ignoreip` protège explicitement la machine d'administration (`10.10.10.1`) de tout bannissement accidentel, le même réflexe de prudence appliqué au SSH des niveaux précédents.
+**Explication des choix :** je retiens `maxretry = 3` (plus strict que le défaut de 5) et un `bantime` croissant (`bantime.increment`) qui multiplie la peine par 4 à chaque récidive, plafonnée à 24h — un compromis entre dissuasion et évitement d'un bannissement définitif sur une IP légitime qui se serait trompée une fois. Je protège explicitement la machine d'administration (`10.10.10.1`) via `ignoreip`, contre tout bannissement accidentel — le même réflexe de prudence que j'applique au SSH des niveaux précédents.
 
 ```bash
 systemctl restart fail2ban
@@ -619,7 +619,7 @@ echo "shutdown_lifetime 1 seconds" >> /etc/squid/squid.conf
 systemctl enable --now squid
 ```
 
-**Choix justifiés :** l'ACL d'autorisation est insérée **avant** la ligne `http_access deny all` déjà présente dans le fichier par défaut (Squid évalue ses règles dans l'ordre, la première correspondance l'emporte) plutôt que d'écraser tout le fichier — je conserve ainsi les ACL par défaut (`localhost`, `SSL_ports`, `Safe_ports`). Cette configuration ouverte n'est qu'une **étape de validation** ; le filtrage par liste de domaines suit immédiatement.
+**Choix justifiés :** j'insère l'ACL d'autorisation **avant** la ligne `http_access deny all` déjà présente dans le fichier par défaut (Squid évalue ses règles dans l'ordre, la première correspondance l'emporte) plutôt que d'écraser tout le fichier — je conserve ainsi les ACL par défaut (`localhost`, `SSL_ports`, `Safe_ports`). Cette configuration ouverte n'est qu'une **étape de validation** ; le filtrage par liste de domaines suit immédiatement.
 
 ```bash
 curl -I -x 127.0.0.1:3128 https://www.wikipedia.org/
@@ -644,9 +644,9 @@ sed -i '69i http_access allow allowed_dst' /etc/squid/squid.conf
 systemctl restart squid
 ```
 
-**Choix justifiés :** `dstdomain` avec un point en tête (`.wikipedia.org`) autorise le domaine **et** ses sous-domaines. L'ACL `allowed_dst` est insérée juste avant `http_access deny all`, qui continue donc à jouer son rôle de règle de refus par défaut pour tout le reste — seuls `archlinux.org` (dépôts/documentation Arch) et `wikipedia.org` (test neutre) passent, tout le reste, y compris `twitter.com`, est bloqué.
+**Choix justifiés :** je retiens `dstdomain` avec un point en tête (`.wikipedia.org`), qui autorise le domaine **et** ses sous-domaines. J'insère l'ACL `allowed_dst` juste avant `http_access deny all`, qui continue donc à jouer son rôle de règle de refus par défaut pour tout le reste — je n'autorise ainsi que `archlinux.org` (dépôts/documentation Arch) et `wikipedia.org` (test neutre) ; tout le reste, y compris `twitter.com`, reste bloqué.
 
-**Incident rencontré :** deux tentatives d'insertion par `sed` ancrées sur un motif (`/^http_access deny all$/i …`) ont échoué **silencieusement** — aucune erreur, mais le fichier restait inchangé, ce qui a d'abord masqué un faux « tout passe » (test via `127.0.0.1`, qui contourne le filtrage — voir ci-dessous) puis un faux « tout est bloqué » (l'ACL n'avait en réalité toujours pas été insérée). Le correctif a été de basculer sur une insertion **par numéro de ligne** (`sed -i '68i …'`), fiable, vérifiée par `grep -n` après coup. Détail complet : incident #15 du journal.
+**Incident rencontré :** je tente à deux reprises d'insérer les lignes d'ACL en ancrant `sed` sur un motif (`/^http_access deny all$/i …`) ; les deux tentatives échouent **silencieusement** — aucune erreur, mais le fichier reste inchangé, ce qui masque d'abord un faux « tout passe » (test via `127.0.0.1`, qui contourne le filtrage — voir ci-dessous) puis un faux « tout est bloqué » (l'ACL n'avait en réalité toujours pas été insérée). Je corrige en basculant sur une insertion **par numéro de ligne** (`sed -i '68i …'`), fiable, que je vérifie par `grep -n` après coup. Détail complet : incident #15 du journal.
 
 ![Premier essai de filtrage : sed silencieusement sans effet, faux « tout passe »](Screenshots/Proxy-EtapeA34-squid-filtrage-test.png)
 ![Second essai, faux « tout est bloqué » — ACL toujours absente](Screenshots/Proxy-EtapeA34-squid-filtrage-test2.png)
@@ -654,7 +654,7 @@ systemctl restart squid
 ![Retest après correctif de méthodologie de test](Screenshots/Proxy-EtapeA37-squid-filtrage-test-corrige.png)
 ![cat -A du diagnostic et insertion par numéro de ligne, confirmée par grep](Screenshots/Proxy-EtapeA39-squid-filtrage-conf-final.png)
 
-**Piège de méthodologie de test :** tester via `curl -x 127.0.0.1:3128 …` renvoie systématiquement `200`, quel que soit le domaine, car la configuration par défaut de Squid contient une règle `http_access allow localhost` (ACL `localhost` = `src 127.0.0.1/32 ::1`) évaluée **avant** toute règle personnalisée. Le test valide doit donc cibler l'IP réelle de l'interface du proxy (`10.10.10.254`), qui ne correspond pas à cette ACL. Détail complet : incident #16 du journal.
+**Piège de méthodologie de test :** je découvre que tester via `curl -x 127.0.0.1:3128 …` renvoie systématiquement `200`, quel que soit le domaine, car la configuration par défaut de Squid contient une règle `http_access allow localhost` (ACL `localhost` = `src 127.0.0.1/32 ::1`) évaluée **avant** toute règle personnalisée. Je corrige donc mes tests pour cibler l'IP réelle de l'interface du proxy (`10.10.10.254`), qui ne correspond pas à cette ACL. Détail complet : incident #16 du journal.
 
 **Test final (depuis la VM proxy elle-même, via son IP réseau réelle) :**
 
