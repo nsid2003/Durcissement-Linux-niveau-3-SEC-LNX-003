@@ -670,4 +670,4 @@ Résultat : `wikipedia.org` → `HTTP/2 200` (domaine autorisé) ; `twitter.com`
 
 **Documentation :** https://wiki.archlinux.org/title/Squid
 
-> **Suite immédiate :** le filtrage Squid est validé **localement sur VM2**. Il reste à ouvrir le pare-feu iptables de VM1 pour autoriser la sortie vers `10.10.10.254:3128`, puis à tester le proxy **depuis VM1** pour valider la chaîne complète de bout en bout. Cette partie sera complétée dès que VM1 sera de nouveau accessible.
+> **Suite immédiate :** le filtrage Squid est validé **localement sur VM2**. Il reste à ouvrir le pare-feu iptables de VM1 pour autoriser la sortie vers `10.10.10.254:3128`, puis à tester le proxy **depuis VM1** pour valider la chaîne complète de bout en bout. Cette partie sera complétée dès que VM1 sera de nouveau accessible..
